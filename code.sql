@@ -1,8 +1,8 @@
 
 CREATE TABLE Job (
                 Job_id NUMBER(10) NOT NULL,
-                staff_role_type_ VARCHAR2(30) NOT NULL,
-                Role_description VARCHAR2(100) NOT NULL,
+                staff_role_type_ VARCHAR2(50) NOT NULL,
+                Role_description VARCHAR2(150) NOT NULL,
                 CONSTRAINT JOB_PK PRIMARY KEY (Job_id)
 );
 
