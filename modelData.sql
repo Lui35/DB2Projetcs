@@ -37,10 +37,10 @@ INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
 VALUES (11, 'Mustang', 3, 5.0);
 
 INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
-VALUES (12, 'Fusion', 3, 1.5);
+VALUES (12, 'Fusion', 3, 2.0);
 
 INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
-VALUES (13, 'Escape', 3, 1.5);
+VALUES (13, 'Escape', 3, 2.5);
 
 INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
 VALUES (14, 'Explorer', 3, 3.3);
@@ -87,7 +87,7 @@ INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
 VALUES (26, 'C-Class', 6, 2.0);
 
 INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
-VALUES (27, 'E-Class', 6, 6.2);
+VALUES (27, 'E-Class', 6, 4.0);
 
 INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
 VALUES (28, 'GLC', 6, 2.0);
