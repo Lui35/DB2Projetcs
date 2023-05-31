@@ -1,6 +1,6 @@
 
 CREATE TABLE Job (
-                Job_id NUMBER(10) NOT NULL,
+                Job_id NUMBER NOT NULL,
                 staff_role_type_ VARCHAR2(50) NOT NULL,
                 Role_description VARCHAR2(150) NOT NULL,
                 CONSTRAINT JOB_PK PRIMARY KEY (Job_id)
@@ -50,24 +50,19 @@ CREATE TABLE Location (
 );
 
 
-CREATE TABLE Store (
-                store_id NUMBER NOT NULL,
-                location_id NUMBER NOT NULL,
-                store_name VARCHAR2(50) NOT NULL,
-                CONSTRAINT STORE_PK PRIMARY KEY (store_id)
-);
-
-
 CREATE TABLE Staff (
                 staff_id NUMBER NOT NULL,
                 first_name VARCHAR2(50) NOT NULL,
-                address VARCHAR2(50) NOT NULL,
                 last_name VARCHAR2(50) NOT NULL,
+                email_address VARCHAR2(100),
                 cpr_number VARCHAR2(20),
                 city VARCHAR2(50) NOT NULL,
                 phone_number VARCHAR2(20) NOT NULL,
-                Job_id NUMBER(10) NOT NULL,
-                store_id NUMBER NOT NULL,
+                Job_id NUMBER NOT NULL,
+                road_address VARCHAR2(20) NOT NULL,
+                house_address VARCHAR2(20) NOT NULL,
+                block_address VARCHAR2(20) NOT NULL,
+                location_id NUMBER NOT NULL,
                 CONSTRAINT STAFF_PK PRIMARY KEY (staff_id)
 );
 
@@ -84,8 +79,9 @@ CREATE TABLE Car (
                 daily_late_return_penalty NUMBER(8,2),
                 car_status VARCHAR2(20) NOT NULL,
                 Category_id NUMBER NOT NULL,
+                location_id NUMBER NOT NULL,
                 CONSTRAINT CAR_PK PRIMARY KEY (car_id),
-                CONSTRAINT CAR_STATUS_CHECK CHECK (car_status IN ('Available', 'Rented', '‘Under Maintenance'))
+                CONSTRAINT CAR_STATUS_CHECK CHECK (car_status IN ('Available', 'Rented', 'Under Maintenance'))
 );
 
 
@@ -113,6 +109,7 @@ CREATE TABLE Car_rental (
                 rent_status VARCHAR2(20) NOT NULL,
                 start_date DATE NOT NULL,
                 end_date DATE NOT NULL,
+                penalty NUMBER NOT NULL,
                 staff_id NUMBER NOT NULL,
                 CONSTRAINT CAR_RENTAL_PK PRIMARY KEY (rental_id),
                 CONSTRAINT RENT_STATUS_CHECK CHECK (rent_status IN ('Confirmed', 'On-going', 'Cancelled', 'Completed'))
@@ -122,12 +119,13 @@ CREATE TABLE Car_rental (
 CREATE TABLE Rental_Equipment (
                 rental_id NUMBER NOT NULL,
                 equipment_id NUMBER NOT NULL,
+                quantity NUMBER NOT NULL,
                 CONSTRAINT RENTAL_EQUIPMENT_PK PRIMARY KEY (rental_id, equipment_id)
 );
 
 
 CREATE TABLE Payment (
-                bill_id NUMBER(10) NOT NULL,
+                bill_id NUMBER NOT NULL,
                 bill_date DATE NOT NULL,
                 payment_id NUMBER(10) NOT NULL,
                 rental_id NUMBER NOT NULL,
@@ -161,14 +159,14 @@ FOREIGN KEY (Category_id)
 REFERENCES Car_Category (Category_id)
 NOT DEFERRABLE;
 
-ALTER TABLE Store ADD CONSTRAINT LOCATION_STORE_FK
+ALTER TABLE Staff ADD CONSTRAINT LOCATION_STAFF_FK
 FOREIGN KEY (location_id)
 REFERENCES Location (location_id)
 NOT DEFERRABLE;
 
-ALTER TABLE Staff ADD CONSTRAINT STORE_STAFF_FK
-FOREIGN KEY (store_id)
-REFERENCES Store (store_id)
+ALTER TABLE Car ADD CONSTRAINT LOCATION_CAR_FK
+FOREIGN KEY (location_id)
+REFERENCES Location (location_id)
 NOT DEFERRABLE;
 
 ALTER TABLE Car_rental ADD CONSTRAINT STAFF_CAR_RENTAL_FK
@@ -195,3 +193,6 @@ ALTER TABLE Rental_Equipment ADD CONSTRAINT CAR_RENTAL_RENTAL_EQUIPMENT_FK
 FOREIGN KEY (rental_id)
 REFERENCES Car_rental (rental_id)
 NOT DEFERRABLE;
+
+
+
