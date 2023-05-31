@@ -1,4 +1,3 @@
-
 CREATE TABLE Job (
                 Job_id NUMBER NOT NULL,
                 staff_role_type_ VARCHAR2(50) NOT NULL,
@@ -54,14 +53,14 @@ CREATE TABLE Staff (
                 staff_id NUMBER NOT NULL,
                 first_name VARCHAR2(50) NOT NULL,
                 last_name VARCHAR2(50) NOT NULL,
-                email_address VARCHAR2(100),
-                cpr_number VARCHAR2(20),
-                city VARCHAR2(50) NOT NULL,
-                phone_number VARCHAR2(20) NOT NULL,
-                Job_id NUMBER NOT NULL,
                 road_address VARCHAR2(20) NOT NULL,
+                phone_number VARCHAR2(20) NOT NULL,
                 house_address VARCHAR2(20) NOT NULL,
                 block_address VARCHAR2(20) NOT NULL,
+                city VARCHAR2(50) NOT NULL,
+                email_address VARCHAR2(100),
+                cpr_number VARCHAR2(20),
+                Job_id NUMBER NOT NULL,
                 location_id NUMBER NOT NULL,
                 CONSTRAINT STAFF_PK PRIMARY KEY (staff_id)
 );
@@ -75,8 +74,8 @@ CREATE TABLE Car (
                 manufacturing_year NUMBER NOT NULL,
                 color VARCHAR2(20) NOT NULL,
                 current_mileage NUMBER NOT NULL,
-                daily_hire_rate NUMBER(8,2),
-                daily_late_return_penalty NUMBER(8,2),
+                daily_hire_rate NUMBER(8,2) NOT NULL,
+                daily_late_return_penalty NUMBER(8,2) NOT NULL,
                 car_status VARCHAR2(20) NOT NULL,
                 Category_id NUMBER NOT NULL,
                 location_id NUMBER NOT NULL,
@@ -88,14 +87,14 @@ CREATE TABLE Car (
 CREATE TABLE Customer  (
                 customer_id NUMBER NOT NULL,
                 first_name VARCHAR2(50) NOT NULL,
-                email_address VARCHAR2(100),
                 last_name VARCHAR2(50) NOT NULL,
                 phone_number VARCHAR2(20) NOT NULL,
-                city VARCHAR2(50) NOT NULL,
-                cpr_number VARCHAR2(20),
                 house_address VARCHAR2(20) NOT NULL,
                 road_address VARCHAR2(20) NOT NULL,
                 block_address VARCHAR2(20) NOT NULL,
+                city VARCHAR2(50) NOT NULL,
+                email_address VARCHAR2(100),
+                cpr_number VARCHAR2(20),
                 CONSTRAINT CUSTOMER_PK PRIMARY KEY (customer_id)
 );
 
@@ -110,6 +109,7 @@ CREATE TABLE Car_rental (
                 start_date DATE NOT NULL,
                 end_date DATE NOT NULL,
                 penalty NUMBER NOT NULL,
+                Total_amount NUMBER NOT NULL,
                 staff_id NUMBER NOT NULL,
                 CONSTRAINT CAR_RENTAL_PK PRIMARY KEY (rental_id),
                 CONSTRAINT RENT_STATUS_CHECK CHECK (rent_status IN ('Confirmed', 'On-going', 'Cancelled', 'Completed'))
@@ -126,10 +126,11 @@ CREATE TABLE Rental_Equipment (
 
 CREATE TABLE Payment (
                 bill_id NUMBER NOT NULL,
-                bill_date DATE NOT NULL,
                 payment_id NUMBER(10) NOT NULL,
-                rental_id NUMBER NOT NULL,
+                bill_date DATE NOT NULL,
                 Payment_Method VARCHAR2(50) NOT NULL,
+                Total_amount NUMBER NOT NULL,
+                rental_id NUMBER NOT NULL,
                 CONSTRAINT PAYMENT_PK PRIMARY KEY (bill_id)
 );
 
@@ -193,6 +194,5 @@ ALTER TABLE Rental_Equipment ADD CONSTRAINT CAR_RENTAL_RENTAL_EQUIPMENT_FK
 FOREIGN KEY (rental_id)
 REFERENCES Car_rental (rental_id)
 NOT DEFERRABLE;
-
 
 
