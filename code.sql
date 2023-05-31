@@ -113,7 +113,6 @@ CREATE TABLE Car_rental (
                 rent_status VARCHAR2(20) NOT NULL,
                 start_date DATE NOT NULL,
                 end_date DATE NOT NULL,
-                penalty NUMBER,
                 staff_id NUMBER NOT NULL,
                 CONSTRAINT CAR_RENTAL_PK PRIMARY KEY (rental_id),
                 CONSTRAINT RENT_STATUS_CHECK CHECK (rent_status IN ('Confirmed', 'On-going', 'Cancelled', 'Completed'))
