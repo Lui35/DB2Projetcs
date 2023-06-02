@@ -6,24 +6,39 @@ BEGIN
 END;
 /
 
-CREATE OR REPLACE TRIGGER check_for_cusid
-BEFORE INSERT ON car_rental
+CREATE OR REPLACE TRIGGER car_manufacturing_year_trigger
+BEFORE INSERT ON Car
 FOR EACH ROW
-declare 
-v_id integer;
+DECLARE
+    penalty_rate NUMBER(8,2);
 BEGIN
-
-    SELECT customer_id
-    into v_id
-    from customer
-    where customer_id = :NEW.customer_id;
+    IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
+        penalty_rate := 10;
+    ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
+        penalty_rate := 5; 
+    ELSE
+        penalty_rate := 3;
+    END IF;
     
-    if  v_id is null then
-    
-    
-    end if;
-    
-     
+    :NEW.daily_late_return_penalty := penalty_rate;
 END;
 /
 
+
+CREATE OR REPLACE TRIGGER car_Rental
+BEFORE INSERT ON Car
+FOR EACH ROW
+DECLARE
+    penalty_rate NUMBER(8,2);
+BEGIN
+    IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
+        penalty_rate := 10;
+    ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
+        penalty_rate := 5; 
+    ELSE
+        penalty_rate := 3;
+    END IF;
+    
+    :NEW.daily_late_return_penalty := penalty_rate;
+END;
+/
