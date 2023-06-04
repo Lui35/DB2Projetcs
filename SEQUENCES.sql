@@ -30,7 +30,7 @@ CREATE SEQUENCE equipment_seq
      NOCYCLE
      NOCACHE;
 
-CREATE SEQUENCE bill_seq
+CREATE SEQUENCE payment_seq
      START WITH 5001
      INCREMENT BY 1
      MINVALUE 1

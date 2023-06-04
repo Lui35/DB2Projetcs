@@ -40,20 +40,42 @@ updatecarstatustorented(:new.Car_id);
 END;
 /
 ----------------------------------------------------------------------------
-CREATE OR REPLACE TRIGGER car_Rental_cost
-BEFORE Update of end_date on Car_rental 
+CREATE OR REPLACE TRIGGER Total_cost
+BEFORE UPDATE OF end_date ON Car_rental 
+FOR EACH ROW
 DECLARE
-    daily_rate integer;
-    penalty_rate NUMBER(8,2);
+    v_daily_rate integer;
+    v_penalty_rate NUMBER(8,2);
+    v_equipment_cost integer;
+    penalty integer;
+
 BEGIN
-select Daily_hire_rate
-into daily_rate
-from car
-where :new.Car_id = car_id;
-:new.cost_rent := calculateoriginalcost (:new.Rent_duration,daily_rate);  
-updatecarstatustorented(:new.Car_id);
+    SELECT daily_hire_rate, daily_late_return_penalty
+    INTO v_daily_rate, v_penalty_rate
+    FROM Car
+    WHERE :OLD.car_id = car_id;
+
+    :NEW.rent_status := 'Completed';
+
+     penalty := calculatepenaltycost(:OLD.start_date, :NEW.end_date, v_daily_rate, v_penalty_rate,:old.rent_duration);
+    :NEW.penalty := penalty ;
+    UPDATE Car
+    set car_status = 'Available'
+    where :OLD.car_id = car_id;
+    
+    v_equipment_cost := calculate_extra_equipment_cost(:old.rental_id);
+    INSERT INTO Payment (payment_id, payment_date, Payment_Method, Total_amount, rental_id)
+    VALUES (PAYMENT_SEQ.nextval, TO_DATE('2023-06-05', 'YYYY-MM-DD'), null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
+
 END;
 /
+
+
+
+
+
+
+
 
 
 
