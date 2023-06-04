@@ -46,7 +46,7 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('Data inserted successfully!');
 END;
 /
-
+--------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE Insert_Staff AS
     p_first_name VARCHAR2(50);
     p_last_name VARCHAR2(50);
@@ -102,3 +102,51 @@ END;
 EXECUTE Insert_Staff;
 
 
+--------------------------------------------------------------------
+CREATE OR REPLACE PROCEDURE updatecarstatustorented (
+    p_car_id IN NUMBER
+) IS
+    v_status car.car_status%TYPE;
+BEGIN
+    SELECT
+        car_status
+    INTO v_status
+    FROM
+        car
+    WHERE
+        car_id = p_car_id;
+    IF v_status = 'Available' THEN
+        UPDATE car
+        SET
+            car_status = 'Rented'
+        WHERE
+            car_id = p_car_id; 
+        dbms_output.put_line('Car status updated to rented'); 
+    ELSE
+        dbms_output.put_line('Car is not available for rent');
+    END IF;
+EXCEPTION
+    WHEN no_data_found THEN
+        dbms_output.put_line('Car not found');
+END updatecarstatustorented;
+/
+----------------------------------------
+CREATE OR REPLACE PROCEDURE total_rental_income (o_total_income OUT NUMBER) IS
+BEGIN
+  SELECT SUM(Cost_rent)
+  INTO o_total_income
+  FROM Car_rental;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    o_total_income := 0;
+END total_rental_income;
+/
+----------------------------------------
+CREATE OR REPLACE PROCEDURE rentals_per_status (o_rental_status_report OUT SYS_REFCURSOR) IS
+BEGIN
+  OPEN o_rental_status_report FOR
+    SELECT rent_status, COUNT(rental_id) as total_rentals
+    FROM Car_rental
+    GROUP BY rent_status;
+END rentals_per_status;
+/

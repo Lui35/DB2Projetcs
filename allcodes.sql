@@ -108,9 +108,8 @@ CREATE TABLE Car_rental (
                 Cost_rent NUMBER NOT NULL,
                 rent_status VARCHAR2(20) NOT NULL,
                 start_date DATE NOT NULL,
-                end_date DATE NOT NULL,
-                penalty NUMBER NOT NULL,
-                Total_amount NUMBER NOT NULL,
+                end_date DATE ,
+                penalty NUMBER ,
                 staff_id NUMBER NOT NULL,
                 CONSTRAINT CAR_RENTAL_PK PRIMARY KEY (rental_id),
                 CONSTRAINT RENT_STATUS_CHECK CHECK (rent_status IN ('Confirmed', 'On-going', 'Cancelled', 'Completed'))
@@ -195,6 +194,9 @@ ALTER TABLE Rental_Equipment ADD CONSTRAINT CAR_RENTAL_RENTAL_EQUIPMENT_FK
 FOREIGN KEY (rental_id)
 REFERENCES Car_rental (rental_id)
 NOT DEFERRABLE;
+
+
+
 --triggers 
 CREATE OR REPLACE TRIGGER generate_email
 BEFORE INSERT ON Staff
@@ -203,7 +205,66 @@ BEGIN
     :NEW.email_address := LOWER(:NEW.first_name) || '.' || LOWER(:NEW.last_name) || '@CarRental.com';
 END;
 /
+
+CREATE OR REPLACE TRIGGER car_manufacturing_year_trigger
+BEFORE INSERT ON Car
+FOR EACH ROW
+DECLARE
+    penalty_rate NUMBER(8,2);
+BEGIN
+    IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
+        penalty_rate := 10;
+    ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
+        penalty_rate := 5; 
+    ELSE
+        penalty_rate := 3;
+    END IF;
+    
+    :NEW.daily_late_return_penalty := penalty_rate;
+END;
+/
+
+CREATE OR REPLACE TRIGGER car_Rental_cost
+BEFORE INSERT ON Car_rental
+FOR EACH ROW
+DECLARE
+    daily_rate integer;
+    penalty_rate NUMBER(8,2);
+BEGIN
+select Daily_hire_rate
+into daily_rate
+from car
+where :new.Car_id = car_id;
+:new.cost_rent := calculateoriginalcost (:new.Rent_duration,daily_rate);  
+updatecarstatustorented(:new.Car_id);
+END;
+/
 --functions
+CREATE OR REPLACE FUNCTION calculateoriginalcost (
+    durations IN NUMBER,
+    daily_rate IN NUMBER
+) RETURN NUMBER IS
+    original_cost NUMBER;
+BEGIN
+    original_cost := durations * daily_rate;
+    RETURN original_cost;
+END calculateoriginalcost;
+/
+
+CREATE OR REPLACE FUNCTION calculatepenaltycost (
+    start_date         IN DATE,
+    end_date           IN DATE,
+    daily_rate         IN NUMBER,
+    penalty_percentage IN NUMBER
+) RETURN NUMBER IS
+    days         INTEGER;
+    penalty_cost NUMBER;
+BEGIN
+    days := end_date - start_date;
+    penalty_cost := days * daily_rate * ( ( penalty_percentage / 100 ) );
+    RETURN penalty_cost;
+END calculatepenaltycost;
+/
 --sequences
 CREATE SEQUENCE car_seq
      START WITH 1001
