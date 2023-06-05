@@ -38,7 +38,7 @@ DECLARE
   v_total_rentals NUMBER;
 BEGIN
   total_rental_income(v_total_income);
-  DBMS_OUTPUT.PUT_LINE('Total Rental Income: ' || v_total_income);
+  DBMS_OUTPUT.PUT_LINE('Total Rental Income without penalty: ' || v_total_income);
 
   rentals_per_status(v_rental_status_report);
 
