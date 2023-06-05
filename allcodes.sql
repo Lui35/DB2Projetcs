@@ -193,75 +193,6 @@ FOREIGN KEY (rental_id)
 REFERENCES Car_rental (rental_id)
 NOT DEFERRABLE;
 
-
---triggers 
-CREATE OR REPLACE TRIGGER generate_email
-BEFORE INSERT ON Staff
-FOR EACH ROW
-BEGIN
-    :NEW.email_address := LOWER(:NEW.first_name) || '.' || LOWER(:NEW.last_name) || '@CarRental.com';
-END;
-/
-
-CREATE OR REPLACE TRIGGER car_manufacturing_year_trigger
-BEFORE INSERT ON Car
-FOR EACH ROW
-DECLARE
-    penalty_rate NUMBER(8,2);
-BEGIN
-    IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
-        penalty_rate := 10;
-    ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
-        penalty_rate := 5; 
-    ELSE
-        penalty_rate := 3;
-    END IF;
-    
-    :NEW.daily_late_return_penalty := penalty_rate;
-END;
-/
-
-CREATE OR REPLACE TRIGGER car_Rental_cost
-BEFORE INSERT ON Car_rental
-FOR EACH ROW
-DECLARE
-    daily_rate integer;
-    penalty_rate NUMBER(8,2);
-BEGIN
-select Daily_hire_rate
-into daily_rate
-from car
-where :new.Car_id = car_id;
-:new.cost_rent := calculateoriginalcost (:new.Rent_duration,daily_rate);  
-updatecarstatustorented(:new.Car_id);
-END;
-/
---functions
-CREATE OR REPLACE FUNCTION calculateoriginalcost (
-    durations IN NUMBER,
-    daily_rate IN NUMBER
-) RETURN NUMBER IS
-    original_cost NUMBER;
-BEGIN
-    original_cost := durations * daily_rate;
-    RETURN original_cost;
-END calculateoriginalcost;
-/
-
-CREATE OR REPLACE FUNCTION calculatepenaltycost (
-    start_date         IN DATE,
-    end_date           IN DATE,
-    daily_rate         IN NUMBER,
-    penalty_percentage IN NUMBER
-) RETURN NUMBER IS
-    days         INTEGER;
-    penalty_cost NUMBER;
-BEGIN
-    days := end_date - start_date;
-    penalty_cost := days * daily_rate * ( ( penalty_percentage / 100 ) );
-    RETURN penalty_cost;
-END calculatepenaltycost;
-/
 --sequences
 CREATE SEQUENCE car_seq
      START WITH 1001
@@ -295,16 +226,8 @@ CREATE SEQUENCE equipment_seq
      NOCYCLE
      NOCACHE;
 
-CREATE SEQUENCE bill_seq
-     START WITH 5001
-     INCREMENT BY 1
-     MINVALUE 1
-     MAXVALUE 9999999999999
-     CYCLE
-     NOCACHE;
-
 CREATE SEQUENCE payment_seq
-     START WITH 6001
+     START WITH 5001
      INCREMENT BY 1
      MINVALUE 1
      MAXVALUE 9999999999999
@@ -318,6 +241,247 @@ CREATE SEQUENCE staff_seq
      MAXVALUE 999999
      NOCYCLE
      NOCACHE;
+
+--triggers 
+CREATE OR REPLACE TRIGGER generate_email
+BEFORE INSERT ON Staff
+FOR EACH ROW
+BEGIN
+    :NEW.email_address := LOWER(:NEW.first_name) || '.' || LOWER(:NEW.last_name) || '@CarRental.com';
+END;
+/
+
+CREATE OR REPLACE TRIGGER car_manufacturing_year_trigger
+BEFORE INSERT ON Car
+FOR EACH ROW
+DECLARE
+    penalty_rate NUMBER(8,2);
+BEGIN
+    IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
+        penalty_rate := 10;
+    ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
+        penalty_rate := 5; 
+    ELSE
+        penalty_rate := 3;
+    END IF;
+    
+    :NEW.daily_late_return_penalty := penalty_rate;
+END;
+/
+
+CREATE OR REPLACE TRIGGER car_Rental_cost
+BEFORE INSERT ON Car_rental
+FOR EACH ROW
+DECLARE
+    daily_rate INTEGER;
+    penalty_rate NUMBER(8,2);
+    car_status VARCHAR2(20);
+BEGIN
+    -- Check if the car is available
+    SELECT Car_status, Daily_hire_rate
+    INTO car_status, daily_rate
+    FROM car
+    WHERE Car_id = :new.Car_id;
+
+    -- If the car is available, perform the actions
+    IF car_status = 'Available' THEN
+        :new.cost_rent := calculateoriginalcost(:new.Rent_duration, daily_rate);
+        dbms_output.put_line(updatecarstatustorented(:new.Car_id));
+        :new.rent_status := 'Confirmed';
+    else
+    dbms_output.put_line('The car is not available');
+    END IF;
+END;
+/
+
+
+CREATE OR REPLACE TRIGGER Total_cost
+BEFORE UPDATE OF end_date ON Car_rental 
+FOR EACH ROW
+DECLARE
+    v_daily_rate integer;
+    v_penalty_rate NUMBER(8,2);
+    v_equipment_cost integer;
+    penalty integer;
+
+BEGIN
+    SELECT daily_hire_rate, daily_late_return_penalty
+    INTO v_daily_rate, v_penalty_rate
+    FROM Car
+    WHERE :OLD.car_id = car_id;
+
+    :NEW.rent_status := 'Completed';
+
+     penalty := calculatepenaltycost(:OLD.start_date, :NEW.end_date, v_daily_rate, v_penalty_rate,:old.rent_duration);
+    :NEW.penalty := penalty ;
+    UPDATE Car
+    set car_status = 'Available'
+    where :OLD.car_id = car_id;
+    
+    v_equipment_cost := calculate_extra_equipment_cost(:old.rental_id);
+    INSERT INTO Payment (payment_id, payment_date, Payment_Method, Total_amount, rental_id)
+    VALUES (PAYMENT_SEQ.nextval, TO_DATE('2023-06-05', 'YYYY-MM-DD'), null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
+
+END;
+/
+
+--functions
+CREATE OR REPLACE FUNCTION calculateoriginalcost (
+    durations IN NUMBER,
+    daily_rate IN NUMBER
+) RETURN NUMBER IS
+    original_cost NUMBER;
+BEGIN
+    original_cost := durations * daily_rate;
+    RETURN original_cost;
+END calculateoriginalcost;
+/
+
+CREATE OR REPLACE FUNCTION calculatepenaltycost (
+    start_date         IN DATE,
+    end_date           IN DATE,
+    daily_rate         IN NUMBER,
+    penalty_percentage IN NUMBER,
+    rent_duration IN NUMBER
+) RETURN NUMBER IS
+    v_day         INTEGER;
+    penalty_cost NUMBER := 0;
+BEGIN
+    v_day := end_date - start_date - rent_duration;
+    if v_day >0 then
+    penalty_cost := v_day * daily_rate * (1+( penalty_percentage / 100 ) );
+    RETURN penalty_cost;
+    end if;
+    RETURN penalty_cost;
+END calculatepenaltycost;
+/
+
+CREATE OR REPLACE FUNCTION updatecarstatustorented (
+    p_car_id IN NUMBER
+) RETURN VARCHAR2 IS
+    v_status car.car_status%TYPE;
+BEGIN
+    SELECT
+        car_status
+    INTO v_status
+    FROM
+        car
+    WHERE
+        car_id = p_car_id;
+    IF v_status = 'Available' THEN
+        UPDATE car
+        SET
+            car_status = 'Rented'
+        WHERE
+            car_id = p_car_id; 
+        RETURN 'Car status updated to rented';
+    ELSE
+        RETURN 'Car is not available for rent';
+    END IF;
+EXCEPTION
+    WHEN no_data_found THEN
+        RETURN 'Car not found';
+END updatecarstatustorented;
+/
+
+CREATE OR REPLACE FUNCTION update_rental_status(
+  p_rental_id NUMBER
+) RETURN VARCHAR2 IS
+  v_start_date DATE;
+  v_end_date DATE;
+BEGIN
+  -- Validate rental ID before updating
+  SELECT Start_Date, End_date 
+  INTO v_start_date, v_end_date
+  FROM CAR_RENTAL 
+  WHERE rental_id = p_rental_id;
+
+  -- Check if the rental is within the valid period
+  IF SYSDATE >= v_start_date AND v_end_date IS NULL THEN
+    -- Update rental status to 'On-going'
+    UPDATE car_rental
+    SET rent_status = 'On-going'
+    WHERE rental_id = p_rental_id;
+
+    RETURN 'Rental ID ' || p_rental_id || ' status changed to on-going';
+  ELSE
+    RETURN 'Rental ID ' || p_rental_id || ' did not change the status';
+  END IF;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RETURN 'Rental ID ' || p_rental_id || ' not found.';
+  WHEN OTHERS THEN
+    RETURN 'Error updating rental ID ' || p_rental_id || ': ' || SQLERRM;
+END;
+/
+
+CREATE OR REPLACE FUNCTION calculate_extra_equipment_cost(p_rental_id IN NUMBER)
+RETURN NUMBER
+IS
+  v_total_cost NUMBER := 0;
+BEGIN
+  FOR rec IN (
+    SELECT re.rental_id, re.equipment_id, re.quantity, ee.price
+    FROM Rental_Equipment re
+    JOIN Extra_Equipment ee ON re.equipment_id = ee.equipment_id
+    WHERE re.rental_id = p_rental_id
+  )
+  LOOP
+    v_total_cost := v_total_cost + (rec.quantity * rec.price);
+  END LOOP;
+
+  RETURN v_total_cost;
+END;
+/
+--procedure
+
+CREATE OR REPLACE PROCEDURE total_rental_income (o_total_income OUT NUMBER) IS
+BEGIN
+  SELECT SUM(Cost_rent)
+  INTO o_total_income
+  FROM Car_rental;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    o_total_income := 0;
+END total_rental_income;
+/
+
+CREATE OR REPLACE PROCEDURE rentals_per_status (o_rental_status_report OUT SYS_REFCURSOR) IS
+BEGIN
+  OPEN o_rental_status_report FOR
+    SELECT rent_status, COUNT(rental_id) as total_rentals
+    FROM Car_rental
+    GROUP BY rent_status;
+END rentals_per_status;
+/
+
+CREATE OR REPLACE PROCEDURE find_most_rented_car(
+    p_month IN NUMBER,
+    p_year IN NUMBER
+) IS
+    v_start_date DATE;
+    v_end_date DATE;
+    v_most_rented_model VARCHAR2(100);
+    v_rent_count NUMBER := 0;
+BEGIN
+    v_start_date := TO_DATE(p_year || '-' || p_month || '-01', 'YYYY-MM-DD');
+    v_end_date := LAST_DAY(v_start_date);
+
+    SELECT m.model_name, COUNT(cr.rental_id) AS rent_count
+    INTO v_most_rented_model, v_rent_count
+    FROM Car_rental cr
+    JOIN Car c ON cr.car_id = c.car_id
+    JOIN Model m ON m.model_id = c.model_id
+    WHERE cr.start_date >= v_start_date AND cr.end_date <= v_end_date
+    GROUP BY m.model_name
+    ORDER BY COUNT(cr.rental_id) DESC
+    FETCH FIRST ROW ONLY;
+
+    DBMS_OUTPUT.PUT_LINE('The most rented car for ' || TO_CHAR(v_start_date, 'YYYY-MM') || ' is Model: ' || v_most_rented_model || ', Rent Count: ' || v_rent_count);
+END;
+/
+
+
 
 --manufacture
 INSERT INTO Manufacturer (manufactuerer_id, Manufacturer_name)
@@ -683,95 +847,98 @@ INSERT INTO Customer (customer_id, first_name, email_address, last_name, phone_n
 VALUES (customer_seq.nextval, 'Ahmed', 'ahmed@mail.com', 'Hassan', '36654321', 'Zinj', '067890123', '1234', '8532', '3285');
 --car 
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 1, 778997, TO_DATE('2027-05-31', 'YYYY-MM-DD'), 2021, 'Red', 50000, 50.00, 10.00, 'Available', 10, 1);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 2, 654321, TO_DATE('2024-06-15', 'YYYY-MM-DD'), 2020, 'Blue', 45000, 60.00, 12.00, 'Available', 10, 1);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 1, 778997, TO_DATE('2027-05-31', 'YYYY-MM-DD'), 2021, 'Red', 50000, 50.00, 'Available', 10, 1);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 3, 98765, TO_DATE('2025-07-01', 'YYYY-MM-DD'), 2022, 'Black', 60000, 55.00, 11.00, 'Available', 10, 1);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 2, 654321, TO_DATE('2024-06-15', 'YYYY-MM-DD'), 2020, 'Blue', 45000, 60.00, 'Available', 10, 1);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 4, 54321, TO_DATE('2026-07-15', 'YYYY-MM-DD'), 2019, 'White', 90000, 65.00, 13.00, 'Available', 30, 1);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 3, 98765, TO_DATE('2025-07-01', 'YYYY-MM-DD'), 2022, 'Black', 60000, 55.00, 'Available', 10, 1);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 5, 987654, TO_DATE('2023-08-01', 'YYYY-MM-DD'), 2020, 'Silver', 55000, 60.00, 12.00, 'Available', 10, 2);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 4, 54321, TO_DATE('2026-07-15', 'YYYY-MM-DD'), 2019, 'White', 90000, 65.00, 'Available', 30, 1);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 6, 12345, TO_DATE('2023-08-15', 'YYYY-MM-DD'), 2021, 'Gray', 48000, 70.00, 14.00, 'Available', 30, 2);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 5, 987654, TO_DATE('2023-08-01', 'YYYY-MM-DD'), 2020, 'Silver', 55000, 60.00, 'Available', 10, 2);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 7, 67890, TO_DATE('2023-09-01', 'YYYY-MM-DD'), 2019, 'Red', 52000, 55.00, 11.00, 'Available', 10, 2);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 6, 12345, TO_DATE('2023-08-15', 'YYYY-MM-DD'), 2021, 'Gray', 48000, 70.00, 'Available', 30, 2);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 8, 54321, TO_DATE('2023-09-15', 'YYYY-MM-DD'), 2020, 'Blue', 42000, 65.00, 13.00, 'Available', 20, 2);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 7, 67890, TO_DATE('2023-09-01', 'YYYY-MM-DD'), 2019, 'Red', 52000, 55.00, 'Available', 10, 2);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 9, 98765, TO_DATE('2023-10-01', 'YYYY-MM-DD'), 2021, 'Black', 58000, 60.00, 12.00, 'Available', 30, 2);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 8, 54321, TO_DATE('2023-09-15', 'YYYY-MM-DD'), 2020, 'Blue', 42000, 65.00, 'Available', 20, 2);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 10, 12345, TO_DATE('2023-10-15', 'YYYY-MM-DD'), 2019, 'White', 40000, 70.00, 14.00, 'Available', 10, 3);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 9, 98765, TO_DATE('2023-10-01', 'YYYY-MM-DD'), 2021, 'Black', 58000, 60.00, 'Available', 30, 2);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 16, 18245, TO_DATE('2023-9-26', 'YYYY-MM-DD'), 2021, 'Brown', 30000, 56.00, 13.00, 'Available', 10, 3);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 10, 12345, TO_DATE('2023-10-15', 'YYYY-MM-DD'), 2019, 'White', 40000, 70.00, 'Available', 10, 3);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 31, 94603, TO_DATE('2023-10-15', 'YYYY-MM-DD'), 2018, 'Red', 45000, 65.00, 15.00, 'Available', 10, 3);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 16, 18245, TO_DATE('2023-9-26', 'YYYY-MM-DD'), 2021, 'Brown', 30000, 56.00, 'Available', 10, 3);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 30, 81540, TO_DATE('2024-8-8', 'YYYY-MM-DD'), 2023, 'Black', 12000, 80.00, 8.00, 'Available', 20, 3);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 31, 94603, TO_DATE('2023-10-15', 'YYYY-MM-DD'), 2018, 'Red', 45000, 65.00, 'Available', 10, 3);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 33, 63798, TO_DATE('2023-12-7', 'YYYY-MM-DD'), 2017, 'White', 64000, 58.00, 12.00, 'Available', 30, 3);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 30, 81540, TO_DATE('2024-8-8', 'YYYY-MM-DD'), 2023, 'Black', 12000, 80.00, 'Available', 20, 3);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 12, 62489, TO_DATE('2023-11-5', 'YYYY-MM-DD'), 2015, 'Grey', 100000, 50.00, 4.00, 'Available', 10, 4);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 33, 63798, TO_DATE('2023-12-7', 'YYYY-MM-DD'), 2017, 'White', 64000, 58.00, 'Available', 30, 3);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 1, 63451, TO_DATE('2024-2-6', 'YYYY-MM-DD'), 2021, 'White', 48000, 60.00, 5.50, 'Available', 10, 4);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 12, 62489, TO_DATE('2023-11-5', 'YYYY-MM-DD'), 2015, 'Grey', 100000, 50.00, 'Available', 10, 4);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 7, 65802, TO_DATE('2024-1-28', 'YYYY-MM-DD'), 2020, 'Blue', 30000, 59.00, 5.00, 'Available', 10, 4);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 1, 63451, TO_DATE('2024-2-6', 'YYYY-MM-DD'), 2021, 'White', 48000, 60.00, 'Available', 10, 4);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 3, 67802, TO_DATE('2025-10-21', 'YYYY-MM-DD'), 2022, 'Silver', 21000, 62.00, 6.00, 'Available', 30, 4);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 7, 65802, TO_DATE('2024-1-28', 'YYYY-MM-DD'), 2020, 'Blue', 30000, 59.00, 'Available', 10, 4);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 27, 40210, TO_DATE('2025-8-26', 'YYYY-MM-DD'), 2020, 'Grey', 29000, 71.00, 7.00, 'Available', 20, 4);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 3, 67802, TO_DATE('2025-10-21', 'YYYY-MM-DD'), 2022, 'Silver', 21000, 62.00, 'Available', 30, 4);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 36, 45152, TO_DATE('2024-6-21', 'YYYY-MM-DD'), 2019, 'Blue', 52000, 58.00, 5.30, 'Available', 10, 5);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 27, 40210, TO_DATE('2025-8-26', 'YYYY-MM-DD'), 2020, 'Grey', 29000, 71.00, 'Available', 20, 4);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 44, 59782, TO_DATE('2024-7-12', 'YYYY-MM-DD'), 2017, 'Brown', 70000, 57.00, 3.60, 'Available', 30, 5);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 36, 45152, TO_DATE('2024-6-21', 'YYYY-MM-DD'), 2019, 'Blue', 52000, 58.00, 'Available', 10, 5);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 46, 54395, TO_DATE('2024-3-20', 'YYYY-MM-DD'), 2022, 'Silver', 32000, 53.00, 4.00, 'Available', 10, 5);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 44, 59782, TO_DATE('2024-7-12', 'YYYY-MM-DD'), 2017, 'Brown', 70000, 57.00, 'Available', 30, 5);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 6, 16489, TO_DATE('2024-8-28', 'YYYY-MM-DD'), 2023, 'Black', 20000, 62.00, 5.00, 'Available', 10, 5);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 46, 54395, TO_DATE('2024-3-20', 'YYYY-MM-DD'), 2022, 'Silver', 32000, 53.00, 'Available', 10, 5);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 11, 64239, TO_DATE('2025-6-16', 'YYYY-MM-DD'), 2023, 'White', 11000, 72.00, 7.00, 'Available', 20, 5);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 6, 16489, TO_DATE('2024-8-28', 'YYYY-MM-DD'), 2023, 'Black', 20000, 62.00, 'Available', 10, 5);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 25, 39267, TO_DATE('2025-12-30', 'YYYY-MM-DD'), 2023, 'Grey', 13000, 110.00, 10.00, 'Available', 20, 5);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 11, 64239, TO_DATE('2025-6-16', 'YYYY-MM-DD'), 2023, 'White', 11000, 72.00, 'Available', 20, 5);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 40, 19360, TO_DATE('2025-10-23', 'YYYY-MM-DD'), 2023, 'Green', 16000, 123.00, 11.00, 'Available', 20, 2);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 25, 39267, TO_DATE('2025-12-30', 'YYYY-MM-DD'), 2023, 'Grey', 13000, 110.00, 'Available', 20, 5);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 9, 16502, TO_DATE('2024-12-5', 'YYYY-MM-DD'), 2020, 'Brown', 62000, 57.00, 5.00, 'Available', 30, 2);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 40, 19360, TO_DATE('2025-10-23', 'YYYY-MM-DD'), 2023, 'Green', 16000, 123.00, 'Available', 20, 2);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 3, 62029, TO_DATE('2024-11-17', 'YYYY-MM-DD'), 2021, 'Black', 46000, 58.00, 5.00, 'Available', 30, 3);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 9, 16502, TO_DATE('2024-12-5', 'YYYY-MM-DD'), 2020, 'Brown', 62000, 57.00, 'Available', 30, 2);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 3, 30269, TO_DATE('2024-11-17', 'YYYY-MM-DD'), 2021, 'Black', 43000, 58.00, 5.00, 'Available', 30, 3);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 3, 62029, TO_DATE('2024-11-17', 'YYYY-MM-DD'), 2021, 'Black', 46000, 58.00, 'Available', 30, 3);
 
-INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, daily_late_return_penalty, car_status, Category_id,location_id)
-VALUES (car_seq.nextval, 40, 19564, TO_DATE('2025-10-23', 'YYYY-MM-DD'), 2023, 'Purple', 20000, 119.00, 11.00, 'Available', 20, 4);
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 3, 30269, TO_DATE('2024-11-17', 'YYYY-MM-DD'), 2021, 'Black', 43000, 58.00, 'Available', 30, 3);
+
+INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
+VALUES (car_seq.nextval, 40, 19564, TO_DATE('2025-10-23', 'YYYY-MM-DD'), 2023, 'Purple', 20000, 119.00, 'Available', 20, 4);
+
+
 -- staff
 
 INSERT INTO Staff (staff_id, first_name, last_name, cpr_number, city, phone_number, Job_id, location_id, house_address, road_address, block_address) VALUES

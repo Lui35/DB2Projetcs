@@ -43,6 +43,8 @@ BEGIN
         :new.cost_rent := calculateoriginalcost(:new.Rent_duration, daily_rate);
         dbms_output.put_line(updatecarstatustorented(:new.Car_id));
         :new.rent_status := 'Confirmed';
+    else
+    dbms_output.put_line('The car is not available');
     END IF;
 END;
 /
