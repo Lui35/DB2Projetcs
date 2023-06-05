@@ -1,4 +1,3 @@
---tables
 CREATE TABLE Job (
                 Job_id NUMBER NOT NULL,
                 staff_role_type_ VARCHAR2(50) NOT NULL,
@@ -125,13 +124,12 @@ CREATE TABLE Rental_Equipment (
 
 
 CREATE TABLE Payment (
-                bill_id NUMBER NOT NULL,
                 payment_id NUMBER(10) NOT NULL,
-                bill_date DATE NOT NULL,
+                payment_date DATE NOT NULL,
                 Payment_Method VARCHAR2(50) NOT NULL,
                 Total_amount NUMBER NOT NULL,
                 rental_id NUMBER NOT NULL,
-                CONSTRAINT PAYMENT_PK PRIMARY KEY (bill_id)
+                CONSTRAINT PAYMENT_PK PRIMARY KEY (payment_id)
 );
 
 
@@ -194,7 +192,6 @@ ALTER TABLE Rental_Equipment ADD CONSTRAINT CAR_RENTAL_RENTAL_EQUIPMENT_FK
 FOREIGN KEY (rental_id)
 REFERENCES Car_rental (rental_id)
 NOT DEFERRABLE;
-
 
 
 --triggers 

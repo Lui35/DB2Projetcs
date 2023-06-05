@@ -28,17 +28,25 @@ CREATE OR REPLACE TRIGGER car_Rental_cost
 BEFORE INSERT ON Car_rental
 FOR EACH ROW
 DECLARE
-    daily_rate integer;
+    daily_rate INTEGER;
     penalty_rate NUMBER(8,2);
+    car_status VARCHAR2(20);
 BEGIN
-select Daily_hire_rate
-into daily_rate
-from car
-where :new.Car_id = car_id;
-:new.cost_rent := calculateoriginalcost (:new.Rent_duration,daily_rate);  
-dbms_output.put_line(updatecarstatustorented(:new.Car_id));
+    -- Check if the car is available
+    SELECT Car_status, Daily_hire_rate
+    INTO car_status, daily_rate
+    FROM car
+    WHERE Car_id = :new.Car_id;
+
+    -- If the car is available, perform the actions
+    IF car_status = 'Available' THEN
+        :new.cost_rent := calculateoriginalcost(:new.Rent_duration, daily_rate);
+        dbms_output.put_line(updatecarstatustorented(:new.Car_id));
+        :new.rent_status := 'Confirmed';
+    END IF;
 END;
 /
+
 ----------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER Total_cost
 BEFORE UPDATE OF end_date ON Car_rental 
