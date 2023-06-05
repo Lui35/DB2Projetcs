@@ -193,6 +193,27 @@ FOREIGN KEY (rental_id)
 REFERENCES Car_rental (rental_id)
 NOT DEFERRABLE;
 
+--views
+CREATE or replace VIEW Most_Popular_Car_By_Location AS
+SELECT location_id, city, model_id, Model_name, popularity
+FROM (
+  SELECT l.location_id, l.city, c.model_id, m.Model_name, COUNT(cr.car_id) AS popularity,
+         ROW_NUMBER() OVER (PARTITION BY l.location_id ORDER BY COUNT(cr.car_id) DESC) AS row_num
+  FROM Car c
+  JOIN Location l ON c.location_id = l.location_id
+  JOIN Model m ON c.model_id = m.model_id
+  LEFT JOIN Car_rental cr ON c.car_id = cr.car_id
+  GROUP BY l.location_id, l.city, c.model_id, m.Model_name
+) sub
+WHERE row_num = 1;
+
+
+
+CREATE VIEW Total_Earned_In_June_2022 AS
+SELECT SUM(p.Total_amount) AS total_earned
+FROM Payment p
+WHERE p.payment_date >= DATE '2022-06-01' AND p.payment_date < DATE '2022-07-01';
+
 --sequences
 CREATE SEQUENCE car_seq
      START WITH 1001

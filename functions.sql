@@ -56,29 +56,37 @@ EXCEPTION
 END updatecarstatustorented;
 /
 -----------------------------------------------
-create or replace function update_rental_staus (
-p_rental_id number
-) return varchar2
-IS
-v_start_date DATE;
-v_end_date Date;
+CREATE OR REPLACE FUNCTION update_rental_status(
+  p_rental_id NUMBER
+) RETURN VARCHAR2 IS
+  v_start_date DATE;
+  v_end_date DATE;
 BEGIN
+  -- Validate rental ID before updating
+  SELECT Start_Date, End_date 
+  INTO v_start_date, v_end_date
+  FROM CAR_RENTAL 
+  WHERE rental_id = p_rental_id;
 
-Select Start_Date, End_date
-into v_start_date, v_end_date
-from CAR_RENTAL 
-where p_rental_id = rental_id;
+  -- Check if the rental is within the valid period
+  IF SYSDATE >= v_start_date AND v_end_date IS NULL THEN
+    -- Update rental status to 'On-going'
+    UPDATE car_rental
+    SET rent_status = 'On-going'
+    WHERE rental_id = p_rental_id;
 
-if sysdate >= v_start_date AND v_end_date is null then
-update car_rental
-set rent_status = 'On-going'
-where p_rental_id = rental_id;
-
-return 'Statues changed to on going';
-end if;
-return 'Didnt change the stat';
+    RETURN 'Rental ID ' || p_rental_id || ' status changed to on-going';
+  ELSE
+    RETURN 'Rental ID ' || p_rental_id || ' did not change the status';
+  END IF;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RETURN 'Rental ID ' || p_rental_id || ' not found.';
+  WHEN OTHERS THEN
+    RETURN 'Error updating rental ID ' || p_rental_id || ': ' || SQLERRM;
 END;
 /
+
 -----------------------------------------
 CREATE OR REPLACE FUNCTION calculate_extra_equipment_cost(p_rental_id IN NUMBER)
 RETURN NUMBER

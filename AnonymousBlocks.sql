@@ -1,21 +1,35 @@
 set serveroutput on;
 
-declare
-v_max number;
-v_min number;
-v_return varchar2(100);
+DECLARE
+  v_max NUMBER;
+  v_min NUMBER;
+  v_return VARCHAR2(100);
+BEGIN
+  -- Retrieve the minimum and maximum rental IDs
+  SELECT MIN(rental_id), MAX(rental_id)
+  INTO v_min, v_max
+  FROM car_rental;
 
-begin
-select MIN(rental_id), MAX(rental_id)
-into v_min, v_max
-from car_rental;
+  -- Handle inconsistent rental IDs with gaps
+  FOR counter IN v_min .. v_max LOOP
+    -- Call the function only if the rental ID exists in the table
+    BEGIN
+      SELECT rental_id INTO v_return
+      FROM car_rental
+      WHERE rental_id = counter;
 
-FOR counter in v_min .. v_max loop
-v_return := UPDATE_RENTAL_STAUS(counter);
-DBMS_OUTPUT.PUT_LINE(v_return);
-end loop;
-end;
+      v_return := UPDATE_RENTAL_STATUS(counter);
+      DBMS_OUTPUT.PUT_LINE(v_return);
+    EXCEPTION
+      WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('Rental ID ' || counter || ' not found.');
+      WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error updating rental ID ' || counter || ': ' || SQLERRM);
+    END;
+  END LOOP;
+END;
 /
+
 ---------------------------
 DECLARE
   v_total_income NUMBER;

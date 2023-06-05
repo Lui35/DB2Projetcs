@@ -1,6 +1,6 @@
 update car_rental
 set end_date = '21-jun-23'
-where rental_id = 2010;
+where rental_id = 2001;
 rollback;
 
 
