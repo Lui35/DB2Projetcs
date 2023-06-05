@@ -84,9 +84,9 @@ BEGIN
     set car_status = 'Available'
     where :OLD.car_id = car_id;
     
-    v_equipment_cost := calculate_extra_equipment_cost(:old.rental_id);
+    v_equipment_cost := Rental_Management.calculate_extra_equipment_cost(:old.rental_id);
     INSERT INTO Payment (payment_id, payment_date, Payment_Method, Total_amount, rental_id)
-    VALUES (PAYMENT_SEQ.nextval, TO_DATE('2023-06-05', 'YYYY-MM-DD'), null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
+    VALUES (PAYMENT_SEQ.nextval, :new.end_date, null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
 
 END;
 /
