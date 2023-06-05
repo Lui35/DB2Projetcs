@@ -17,10 +17,13 @@ CREATE OR REPLACE FUNCTION calculatepenaltycost (
     rent_duration IN NUMBER
 ) RETURN NUMBER IS
     v_day         INTEGER;
-    penalty_cost NUMBER;
+    penalty_cost NUMBER := 0;
 BEGIN
     v_day := end_date - start_date - rent_duration;
+    if v_day >0 then
     penalty_cost := v_day * daily_rate * (1+( penalty_percentage / 100 ) );
+    RETURN penalty_cost;
+    end if;
     RETURN penalty_cost;
 END calculatepenaltycost;
 /

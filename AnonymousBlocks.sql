@@ -60,6 +60,11 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('The penalty cost for the rental period is: $' || penalty_cost);
 END;
 /
+-------------------------------------
+BEGIN
+    find_most_rented_car(6, 2023); 
+END;
+/
 
 
 

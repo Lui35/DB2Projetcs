@@ -101,35 +101,6 @@ END;
 /
 EXECUTE Insert_Staff;
 
-
---------------------------------------------------------------------
-CREATE OR REPLACE PROCEDURE updatecarstatustorented (
-    p_car_id IN NUMBER
-) IS
-    v_status car.car_status%TYPE;
-BEGIN
-    SELECT
-        car_status
-    INTO v_status
-    FROM
-        car
-    WHERE
-        car_id = p_car_id;
-    IF v_status = 'Available' THEN
-        UPDATE car
-        SET
-            car_status = 'Rented'
-        WHERE
-            car_id = p_car_id; 
-        dbms_output.put_line('Car status updated to rented'); 
-    ELSE
-        dbms_output.put_line('Car is not available for rent');
-    END IF;
-EXCEPTION
-    WHEN no_data_found THEN
-        dbms_output.put_line('Car not found');
-END updatecarstatustorented;
-/
 ----------------------------------------
 CREATE OR REPLACE PROCEDURE total_rental_income (o_total_income OUT NUMBER) IS
 BEGIN
@@ -150,3 +121,32 @@ BEGIN
     GROUP BY rent_status;
 END rentals_per_status;
 /
+---------------------------------------
+CREATE OR REPLACE PROCEDURE find_most_rented_car(
+    p_month IN NUMBER,
+    p_year IN NUMBER
+) IS
+    v_start_date DATE;
+    v_end_date DATE;
+    v_most_rented_model VARCHAR2(100);
+    v_rent_count NUMBER := 0;
+BEGIN
+    v_start_date := TO_DATE(p_year || '-' || p_month || '-01', 'YYYY-MM-DD');
+    v_end_date := LAST_DAY(v_start_date);
+
+    SELECT m.model_name, COUNT(cr.rental_id) AS rent_count
+    INTO v_most_rented_model, v_rent_count
+    FROM Car_rental cr
+    JOIN Car c ON cr.car_id = c.car_id
+    JOIN Model m ON m.model_id = c.model_id
+    WHERE cr.start_date >= v_start_date AND cr.end_date <= v_end_date
+    GROUP BY m.model_name
+    ORDER BY COUNT(cr.rental_id) DESC
+    FETCH FIRST ROW ONLY;
+
+    DBMS_OUTPUT.PUT_LINE('The most rented car for ' || TO_CHAR(v_start_date, 'YYYY-MM') || ' is Model: ' || v_most_rented_model || ', Rent Count: ' || v_rent_count);
+END;
+/
+
+
+

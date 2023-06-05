@@ -36,7 +36,7 @@ into daily_rate
 from car
 where :new.Car_id = car_id;
 :new.cost_rent := calculateoriginalcost (:new.Rent_duration,daily_rate);  
-updatecarstatustorented(:new.Car_id);
+dbms_output.put_line(updatecarstatustorented(:new.Car_id));
 END;
 /
 ----------------------------------------------------------------------------
