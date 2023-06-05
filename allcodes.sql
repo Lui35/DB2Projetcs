@@ -347,115 +347,89 @@ END;
 /
 
 --functions
-CREATE OR REPLACE FUNCTION calculateoriginalcost (
-    durations IN NUMBER,
-    daily_rate IN NUMBER
-) RETURN NUMBER IS
-    original_cost NUMBER;
+--package
+CREATE OR REPLACE TRIGGER generate_email
+BEFORE INSERT ON Staff
+FOR EACH ROW
 BEGIN
-    original_cost := durations * daily_rate;
-    RETURN original_cost;
-END calculateoriginalcost;
+    :NEW.email_address := LOWER(:NEW.first_name) || '.' || LOWER(:NEW.last_name) || '@CarRental.com';
+END;
 /
 
-CREATE OR REPLACE FUNCTION calculatepenaltycost (
-    start_date         IN DATE,
-    end_date           IN DATE,
-    daily_rate         IN NUMBER,
-    penalty_percentage IN NUMBER,
-    rent_duration IN NUMBER
-) RETURN NUMBER IS
-    v_day         INTEGER;
-    penalty_cost NUMBER := 0;
+CREATE OR REPLACE TRIGGER car_manufacturing_year_trigger
+BEFORE INSERT ON Car
+FOR EACH ROW
+DECLARE
+    penalty_rate NUMBER(8,2);
 BEGIN
-    v_day := end_date - start_date - rent_duration;
-    if v_day >0 then
-    penalty_cost := v_day * daily_rate * (1+( penalty_percentage / 100 ) );
-    RETURN penalty_cost;
-    end if;
-    RETURN penalty_cost;
-END calculatepenaltycost;
-/
-
-CREATE OR REPLACE FUNCTION updatecarstatustorented (
-    p_car_id IN NUMBER
-) RETURN VARCHAR2 IS
-    v_status car.car_status%TYPE;
-BEGIN
-    SELECT
-        car_status
-    INTO v_status
-    FROM
-        car
-    WHERE
-        car_id = p_car_id;
-    IF v_status = 'Available' THEN
-        UPDATE car
-        SET
-            car_status = 'Rented'
-        WHERE
-            car_id = p_car_id; 
-        RETURN 'Car status updated to rented';
+    IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
+        penalty_rate := 10;
+    ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
+        penalty_rate := 5; 
     ELSE
-        RETURN 'Car is not available for rent';
+        penalty_rate := 3;
     END IF;
-EXCEPTION
-    WHEN no_data_found THEN
-        RETURN 'Car not found';
-END updatecarstatustorented;
-/
-
-CREATE OR REPLACE FUNCTION update_rental_status(
-  p_rental_id NUMBER
-) RETURN VARCHAR2 IS
-  v_start_date DATE;
-  v_end_date DATE;
-BEGIN
-  -- Validate rental ID before updating
-  SELECT Start_Date, End_date 
-  INTO v_start_date, v_end_date
-  FROM CAR_RENTAL 
-  WHERE rental_id = p_rental_id;
-
-  -- Check if the rental is within the valid period
-  IF SYSDATE >= v_start_date AND v_end_date IS NULL THEN
-    -- Update rental status to 'On-going'
-    UPDATE car_rental
-    SET rent_status = 'On-going'
-    WHERE rental_id = p_rental_id;
-
-    RETURN 'Rental ID ' || p_rental_id || ' status changed to on-going';
-  ELSE
-    RETURN 'Rental ID ' || p_rental_id || ' did not change the status';
-  END IF;
-EXCEPTION
-  WHEN NO_DATA_FOUND THEN
-    RETURN 'Rental ID ' || p_rental_id || ' not found.';
-  WHEN OTHERS THEN
-    RETURN 'Error updating rental ID ' || p_rental_id || ': ' || SQLERRM;
+    
+    :NEW.daily_late_return_penalty := penalty_rate;
 END;
 /
 
-CREATE OR REPLACE FUNCTION calculate_extra_equipment_cost(p_rental_id IN NUMBER)
-RETURN NUMBER
-IS
-  v_total_cost NUMBER := 0;
+CREATE OR REPLACE TRIGGER car_Rental_cost
+BEFORE INSERT ON Car_rental
+FOR EACH ROW
+DECLARE
+    daily_rate INTEGER;
+    penalty_rate NUMBER(8,2);
+    car_status VARCHAR2(20);
 BEGIN
-  FOR rec IN (
-    SELECT re.rental_id, re.equipment_id, re.quantity, ee.price
-    FROM Rental_Equipment re
-    JOIN Extra_Equipment ee ON re.equipment_id = ee.equipment_id
-    WHERE re.rental_id = p_rental_id
-  )
-  LOOP
-    v_total_cost := v_total_cost + (rec.quantity * rec.price);
-  END LOOP;
+    -- Check if the car is available
+    SELECT Car_status, Daily_hire_rate
+    INTO car_status, daily_rate
+    FROM car
+    WHERE Car_id = :new.Car_id;
 
-  RETURN v_total_cost;
+    -- If the car is available, perform the actions
+    IF car_status = 'Available' THEN
+        :new.cost_rent := Rental_Management.calculateoriginalcost(:new.Rent_duration, daily_rate);
+        dbms_output.put_line(Rental_Management.updatecarstatustorented(:new.Car_id));
+        :new.rent_status := 'Confirmed';
+    else
+    dbms_output.put_line('The car is not available');
+    END IF;
 END;
 /
+
+CREATE OR REPLACE TRIGGER Total_cost
+BEFORE UPDATE OF end_date ON Car_rental 
+FOR EACH ROW
+DECLARE
+    v_daily_rate integer;
+    v_penalty_rate NUMBER(8,2);
+    v_equipment_cost integer;
+    penalty integer;
+
+BEGIN
+    SELECT daily_hire_rate, daily_late_return_penalty
+    INTO v_daily_rate, v_penalty_rate
+    FROM Car
+    WHERE :OLD.car_id = car_id;
+
+    :NEW.rent_status := 'Completed';
+
+     penalty := Rental_Management.calculatepenaltycost(:OLD.start_date, :NEW.end_date, v_daily_rate, v_penalty_rate,:old.rent_duration);
+    :NEW.penalty := penalty ;
+    UPDATE Car
+    set car_status = 'Available'
+    where :OLD.car_id = car_id;
+    
+    v_equipment_cost := calculate_extra_equipment_cost(:old.rental_id);
+    INSERT INTO Payment (payment_id, payment_date, Payment_Method, Total_amount, rental_id)
+    VALUES (PAYMENT_SEQ.nextval, TO_DATE('2023-06-05', 'YYYY-MM-DD'), null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
+
+END;
+/
+
 --procedure
-
 CREATE OR REPLACE PROCEDURE total_rental_income (o_total_income OUT NUMBER) IS
 BEGIN
   SELECT SUM(Cost_rent)
@@ -501,8 +475,6 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('The most rented car for ' || TO_CHAR(v_start_date, 'YYYY-MM') || ' is Model: ' || v_most_rented_model || ', Rent Count: ' || v_rent_count);
 END;
 /
-
-
 
 --manufacture
 INSERT INTO Manufacturer (manufactuerer_id, Manufacturer_name)

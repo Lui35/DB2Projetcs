@@ -40,8 +40,8 @@ BEGIN
 
     -- If the car is available, perform the actions
     IF car_status = 'Available' THEN
-        :new.cost_rent := calculateoriginalcost(:new.Rent_duration, daily_rate);
-        dbms_output.put_line(updatecarstatustorented(:new.Car_id));
+        :new.cost_rent := Rental_Management.calculateoriginalcost(:new.Rent_duration, daily_rate);
+        dbms_output.put_line(Rental_Management.updatecarstatustorented(:new.Car_id));
         :new.rent_status := 'Confirmed';
     else
     dbms_output.put_line('The car is not available');
@@ -67,7 +67,7 @@ BEGIN
 
     :NEW.rent_status := 'Completed';
 
-     penalty := calculatepenaltycost(:OLD.start_date, :NEW.end_date, v_daily_rate, v_penalty_rate,:old.rent_duration);
+     penalty := Rental_Management.calculatepenaltycost(:OLD.start_date, :NEW.end_date, v_daily_rate, v_penalty_rate,:old.rent_duration);
     :NEW.penalty := penalty ;
     UPDATE Car
     set car_status = 'Available'
@@ -79,23 +79,3 @@ BEGIN
 
 END;
 /
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

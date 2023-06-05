@@ -27,14 +27,6 @@ CREATE OR REPLACE PACKAGE Rental_Management AS
 END Rental_Management;
 /
 
-
-
-
-
-
-
-
-
 CREATE OR REPLACE PACKAGE BODY Rental_Management AS
   -- Function to calculate original cost of rental
   FUNCTION calculateoriginalcost (
