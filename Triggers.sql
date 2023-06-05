@@ -13,16 +13,27 @@ DECLARE
     penalty_rate NUMBER(8,2);
 BEGIN
     IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
-        penalty_rate := 10;
+        penalty_rate := 6.5;
     ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
-        penalty_rate := 5; 
+        penalty_rate := 3; 
     ELSE
-        penalty_rate := 3;
+        penalty_rate := 2;
+    END IF;
+    IF :NEW.Category_id = 10 THEN
+        penalty_rate := penalty_rate * 1.1; 
+    ELSIF :NEW.Category_id = 20 THEN
+        penalty_rate := penalty_rate * 1.3; 
+    ELSIF :NEW.Category_id = 30 THEN
+        penalty_rate := penalty_rate * 1.5;
+    END IF;
+    IF penalty_rate > 10 THEN
+        penalty_rate := 10;
     END IF;
     
     :NEW.daily_late_return_penalty := penalty_rate;
 END;
 /
+
 ----------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER car_Rental_cost
 BEFORE INSERT ON Car_rental
