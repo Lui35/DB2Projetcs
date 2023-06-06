@@ -1,5 +1,5 @@
 INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
-VALUES (rental_seq.nextval, 3001, 1001, 7, TO_DATE('2023-06-01', 'YYYY-MM-DD'), 7001);
+VALUES (rental_seq.nextval, 3001, 1001, 7, TO_DATE('2022-06-01', 'YYYY-MM-DD'), 7001);
 
 INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
 VALUES (rental_seq.nextval, 3002, 1002, 5, TO_DATE('2022-07-01', 'YYYY-MM-DD'), 7002);
@@ -17,7 +17,7 @@ INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_dat
 VALUES (rental_seq.nextval, 3006, 1006, 15, TO_DATE('2023-01-7', 'YYYY-MM-DD'), 7006);
 
 INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
-VALUES (rental_seq.nextval, 3007, 1007, 14, TO_DATE('2022-11-27', 'YYYY-MM-DD'), 7007);
+VALUES (rental_seq.nextval, 3007, 1007, 14, TO_DATE('2022-6-27', 'YYYY-MM-DD'), 7007);
 
 INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
 VALUES (rental_seq.nextval, 3008, 1008, 2, TO_DATE('2021-04-20', 'YYYY-MM-DD'), 7008);
@@ -57,10 +57,12 @@ VALUES (rental_seq.nextval, 3019, 1019, 7, TO_DATE('2022-09-26', 'YYYY-MM-DD'), 
 
 INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
 VALUES (rental_seq.nextval, 3020, 1020, 8, TO_DATE('2022-12-06', 'YYYY-MM-DD'), 7020);
-
-
+--
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2010, 4002, 2);
+--
 update car_rental
-set end_date = '08-JUN-23'
+set end_date = '12-JUN-22'
 where rental_id = 2001;
 
 update car_rental
@@ -68,7 +70,7 @@ set end_date = '06-JUL-22'
 where rental_id = 2002;
 
 update car_rental
-set end_date = '05-JUL-22'
+set end_date = '07-JUL-22'
 where rental_id = 2003;
 
 update car_rental
@@ -80,11 +82,11 @@ set end_date = '13-DEC-21'
 where rental_id = 2005;
 
 update car_rental
-set end_date = '22-JAN-23'
+set end_date = '30-JAN-23'
 where rental_id = 2006;
 
 update car_rental
-set end_date = '11-DEC-22'
+set end_date = '11-JUL-22'
 where rental_id = 2007;
 
 update car_rental
@@ -100,7 +102,7 @@ set end_date = '22-FEB-23'
 where rental_id = 2010;
 
 update car_rental
-set end_date = '11-MAR-23'
+set end_date = '14-MAR-23'
 where rental_id = 2011;
 
 update car_rental
@@ -108,7 +110,7 @@ set end_date = '14-AUG-22'
 where rental_id = 2012;
 
 update car_rental
-set end_date = '03-OCT-21'
+set end_date = '06-OCT-21'
 where rental_id = 2013;
 
 update car_rental
@@ -120,7 +122,7 @@ set end_date = '18-FEB-21'
 where rental_id = 2015;
 
 update car_rental
-set end_date = '20-FEB-22'
+set end_date = '21-FEB-22'
 where rental_id = 2016;
 
 update car_rental
@@ -132,7 +134,7 @@ set end_date = '09-MAY-23'
 where rental_id = 2018;
 
 update car_rental
-set end_date = '03-OCT-22'
+set end_date = '04-OCT-22'
 where rental_id = 2019;
 
 update car_rental
@@ -140,7 +142,6 @@ set end_date = '14-DEC-22'
 where rental_id = 2020;
 
 
-INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
-VALUES (2010, 4002, 2);
+
 
 
