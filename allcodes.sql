@@ -436,11 +436,25 @@ DECLARE
     penalty_rate NUMBER(8,2);
 BEGIN
     IF :NEW.manufacturing_year >= 2010 AND :NEW.manufacturing_year <= 2021 THEN
-        penalty_rate := 10;
+        penalty_rate := 6;
     ELSIF :NEW.manufacturing_year >= 2000 AND :NEW.manufacturing_year <= 2009 THEN
-        penalty_rate := 5; 
+        penalty_rate := 3; 
     ELSE
-        penalty_rate := 3;
+        penalty_rate := 2;
+    END IF;
+
+    -- Consider car category
+    IF :NEW.Category_id = 10 THEN
+        penalty_rate := penalty_rate * 1.1; -- Adjust penalty rate for ECO category
+    ELSIF :NEW.Category_id = 20 THEN
+        penalty_rate := penalty_rate * 1.5; -- Adjust penalty rate for lux category
+    ELSIF :NEW.Category_id = 30 THEN
+        penalty_rate := penalty_rate * 1.3; -- Adjust penalty rate for SUV category
+    END IF;
+
+    -- Ensure penalty rate doesn't exceed 10
+    IF penalty_rate > 10 THEN
+        penalty_rate := 10;
     END IF;
     
     :NEW.daily_late_return_penalty := penalty_rate;
