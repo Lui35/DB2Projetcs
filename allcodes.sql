@@ -126,7 +126,7 @@ CREATE TABLE Rental_Equipment (
 CREATE TABLE Payment (
                 payment_id NUMBER(10) NOT NULL,
                 payment_date DATE NOT NULL,
-                Payment_Method VARCHAR2(50) NOT NULL,
+                Payment_Method VARCHAR2(50),
                 Total_amount NUMBER NOT NULL,
                 rental_id NUMBER NOT NULL,
                 CONSTRAINT PAYMENT_PK PRIMARY KEY (payment_id)
