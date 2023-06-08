@@ -463,8 +463,8 @@ BEGIN
 
     -- If the car is available, perform the actions
     IF car_status = 'Available' THEN
-        :new.cost_rent := calculateoriginalcost(:new.Rent_duration, daily_rate);
-        dbms_output.put_line(updatecarstatustorented(:new.Car_id));
+        :new.cost_rent := Rental_Management.calculateoriginalcost(:new.Rent_duration, daily_rate);
+        dbms_output.put_line(Rental_Management.updatecarstatustorented(:new.Car_id));
         :new.rent_status := 'Confirmed';
     else
     dbms_output.put_line('The car is not available');
@@ -473,7 +473,7 @@ END;
 /
 
 
-CREATE OR REPLACE TRIGGER Total_cost
+create or replace TRIGGER Total_cost
 BEFORE UPDATE OF end_date ON Car_rental 
 FOR EACH ROW
 DECLARE
@@ -490,18 +490,17 @@ BEGIN
 
     :NEW.rent_status := 'Completed';
 
-     penalty := calculatepenaltycost(:OLD.start_date, :NEW.end_date, v_daily_rate, v_penalty_rate,:old.rent_duration);
+     penalty := Rental_Management.calculatepenaltycost(:OLD.start_date, :NEW.end_date, v_daily_rate, v_penalty_rate,:old.rent_duration);
     :NEW.penalty := penalty ;
     UPDATE Car
     set car_status = 'Available'
     where :OLD.car_id = car_id;
-    
-    v_equipment_cost := calculate_extra_equipment_cost(:old.rental_id);
+
+    v_equipment_cost := Rental_Management.calculate_extra_equipment_cost(:old.rental_id);
     INSERT INTO Payment (payment_id, payment_date, Payment_Method, Total_amount, rental_id)
-    VALUES (PAYMENT_SEQ.nextval, TO_DATE('2023-06-05', 'YYYY-MM-DD'), null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
+    VALUES (PAYMENT_SEQ.nextval, :NEW.end_date, null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
 
 END;
-/
 
 
 CREATE OR REPLACE TRIGGER generate_email
@@ -578,7 +577,7 @@ BEGIN
     set car_status = 'Available'
     where :OLD.car_id = car_id;
     
-    v_equipment_cost := calculate_extra_equipment_cost(:old.rental_id);
+    v_equipment_cost := Rental_Management.calculate_extra_equipment_cost(:old.rental_id);
     INSERT INTO Payment (payment_id, payment_date, Payment_Method, Total_amount, rental_id)
     VALUES (PAYMENT_SEQ.nextval, TO_DATE('2023-06-05', 'YYYY-MM-DD'), null, v_equipment_cost + penalty + :old.cost_rent , :old.rental_id);
 
