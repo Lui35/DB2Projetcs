@@ -1,3 +1,33 @@
+--users
+create user employee IDENTIFIED BY "123";
+
+grant create session to employee;
+
+alter user employee QUOTA unlimited ON users;
+
+GRANT create session, create table, create sequence, create view, create trigger, create procedure to employee;
+
+GRANT UNLIMITED TABLESPACE TO employee;
+
+GRANT all on JOB to employee;
+GRANT all on MANUFACTURER to employee;
+GRANT all on MODEL to employee;
+GRANT all on EXTRA_EQUIPMENT to employee;
+GRANT all on CAR_CATEGORY to employee;
+GRANT all on LOCATION to employee;
+GRANT all on STAFF to employee;
+GRANT all on CAR to employee;
+GRANT all on customer to employee;
+GRANT all on CAR_RENTAL to employee;
+GRANT all on RENTAL_EQUIPMENT to employee;
+GRANT all on PAYMENT to employee;
+
+
+GRANT all ON Most_Popular_Car_By_Location TO employee;
+GRANT all ON Total_Earned_In_June_2022 TO employee;
+
+
+---------------------------------------------
 create user manager IDENTIFIED BY "123";
 
 grant create session to manager;
@@ -20,37 +50,6 @@ GRANT SELECT ON employee.PAYMENT TO manager;
 
 GRANT SELECT ON employee.Most_Popular_Car_By_Location TO manager;
 GRANT SELECT ON employee.Total_Earned_In_June_2022 TO manager;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
---------------------
-
-
-create user employee IDENTIFIED BY "123";
-
-
-grant create session to employee;
-
-GRANT  create session, create table, create sequence, create view, create trigger, create procedure,  to employee;
-
-alter user employee QUOTA unlimited ON users;
-
-
 
 
 

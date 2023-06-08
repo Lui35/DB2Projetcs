@@ -287,6 +287,249 @@ CREATE SEQUENCE staff_seq
      NOCYCLE
      NOCACHE;
 
+--functions
+
+CREATE OR REPLACE FUNCTION calculateoriginalcost (
+    durations IN NUMBER,
+    daily_rate IN NUMBER
+) RETURN NUMBER IS
+    original_cost NUMBER;
+BEGIN
+    original_cost := durations * daily_rate;
+    RETURN original_cost;
+END calculateoriginalcost;
+/
+----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION calculatepenaltycost (
+    start_date         IN DATE,
+    end_date           IN DATE,
+    daily_rate         IN NUMBER,
+    penalty_percentage IN NUMBER,
+    rent_duration IN NUMBER
+) RETURN NUMBER IS
+    v_day         INTEGER;
+    penalty_cost NUMBER := 0;
+BEGIN
+    v_day := end_date - start_date - rent_duration;
+    if v_day >0 then
+    penalty_cost := v_day * daily_rate * (1+( penalty_percentage / 100 ) );
+    RETURN penalty_cost;
+    end if;
+    RETURN penalty_cost;
+END calculatepenaltycost;
+/
+----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION updatecarstatustorented (
+    p_car_id IN NUMBER
+) RETURN VARCHAR2 IS
+    v_status car.car_status%TYPE;
+BEGIN
+    SELECT
+        car_status
+    INTO v_status
+    FROM
+        car
+    WHERE
+        car_id = p_car_id;
+    IF v_status = 'Available' THEN
+        UPDATE car
+        SET
+            car_status = 'Rented'
+        WHERE
+            car_id = p_car_id; 
+        RETURN 'Car status updated to rented';
+    ELSE
+        RETURN 'Car is not available for rent';
+    END IF;
+EXCEPTION
+    WHEN no_data_found THEN
+        RETURN 'Car not found';
+END updatecarstatustorented;
+/
+-----------------------------------------------
+CREATE OR REPLACE FUNCTION update_rental_status(
+  p_rental_id NUMBER
+) RETURN VARCHAR2 IS
+  v_start_date DATE;
+  v_end_date DATE;
+BEGIN
+  -- Validate rental ID before updating
+  SELECT Start_Date, End_date 
+  INTO v_start_date, v_end_date
+  FROM CAR_RENTAL 
+  WHERE rental_id = p_rental_id;
+
+  -- Check if the rental is within the valid period
+  IF SYSDATE >= v_start_date AND v_end_date IS NULL THEN
+    -- Update rental status to 'On-going'
+    UPDATE car_rental
+    SET rent_status = 'On-going'
+    WHERE rental_id = p_rental_id;
+
+    RETURN 'Rental ID ' || p_rental_id || ' status changed to on-going';
+  ELSE
+    RETURN 'Rental ID ' || p_rental_id || ' did not change the status';
+  END IF;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RETURN 'Rental ID ' || p_rental_id || ' not found.';
+  WHEN OTHERS THEN
+    RETURN 'Error updating rental ID ' || p_rental_id || ': ' || SQLERRM;
+END;
+/
+
+-----------------------------------------
+CREATE OR REPLACE FUNCTION calculate_extra_equipment_cost(p_rental_id IN NUMBER)
+RETURN NUMBER
+IS
+  v_total_cost NUMBER := 0;
+BEGIN
+  FOR rec IN (
+    SELECT re.rental_id, re.equipment_id, re.quantity, ee.price
+    FROM Rental_Equipment re
+    JOIN Extra_Equipment ee ON re.equipment_id = ee.equipment_id
+    WHERE re.rental_id = p_rental_id
+  )
+  LOOP
+    v_total_cost := v_total_cost + (rec.quantity * rec.price);
+  END LOOP;
+
+  RETURN v_total_cost;
+END;
+/
+
+--package
+
+
+CREATE OR REPLACE PACKAGE Rental_Management AS
+  FUNCTION calculateoriginalcost (
+    durations IN NUMBER,
+    daily_rate IN NUMBER
+  ) RETURN NUMBER;
+  
+  FUNCTION calculatepenaltycost (
+    start_date         IN DATE,
+    end_date           IN DATE,
+    daily_rate         IN NUMBER,
+    penalty_percentage IN NUMBER,
+    rent_duration IN NUMBER
+  ) RETURN NUMBER;
+  
+  FUNCTION updatecarstatustorented (
+    p_car_id IN NUMBER
+  ) RETURN VARCHAR2;
+  
+  FUNCTION update_rental_status(
+    p_rental_id NUMBER
+  ) RETURN VARCHAR2;
+  
+  FUNCTION calculate_extra_equipment_cost(p_rental_id IN NUMBER)
+  RETURN NUMBER;
+END Rental_Management;
+/
+
+CREATE OR REPLACE PACKAGE BODY Rental_Management AS
+  -- Function to calculate original cost of rental
+  FUNCTION calculateoriginalcost (
+    durations IN NUMBER,
+    daily_rate IN NUMBER
+  ) RETURN NUMBER IS
+    original_cost NUMBER;
+  BEGIN
+    original_cost := durations * daily_rate;
+    RETURN original_cost;
+  END calculateoriginalcost;
+
+  -- Function to calculate penalty cost of rental
+  FUNCTION calculatepenaltycost (
+    start_date         IN DATE,
+    end_date           IN DATE,
+    daily_rate         IN NUMBER,
+    penalty_percentage IN NUMBER,
+    rent_duration IN NUMBER
+  ) RETURN NUMBER IS
+    v_day         INTEGER;
+    penalty_cost NUMBER := 0;
+  BEGIN
+    v_day := end_date - start_date - rent_duration;
+    if v_day >0 then
+    penalty_cost := v_day * daily_rate * (1+( penalty_percentage / 100 ) );
+    RETURN penalty_cost;
+    end if;
+    RETURN penalty_cost;
+  END calculatepenaltycost;
+
+  -- Function to update car status to rented
+  FUNCTION updatecarstatustorented (
+    p_car_id IN NUMBER
+  ) RETURN VARCHAR2 IS
+    v_status car.car_status%TYPE;
+  BEGIN
+    SELECT car_status INTO v_status
+    FROM car
+    WHERE car_id = p_car_id;
+    IF v_status = 'Available' THEN
+        UPDATE car
+        SET car_status = 'Rented'
+        WHERE car_id = p_car_id; 
+        RETURN 'Car status updated to rented';
+    ELSE
+        RETURN 'Car is not available for rent';
+    END IF;
+  EXCEPTION
+    WHEN no_data_found THEN
+        RETURN 'Car not found';
+  END updatecarstatustorented;
+
+  -- Function to update rental status to returned
+  FUNCTION update_rental_status(
+    p_rental_id NUMBER
+  ) RETURN VARCHAR2 IS
+    v_start_date CAR_RENTAL.start_date%TYPE;
+    v_end_date CAR_RENTAL.end_date%TYPE;
+  BEGIN
+    -- Validate rental ID before updating
+    SELECT start_date, end_date INTO v_start_date, v_end_date
+    FROM CAR_RENTAL 
+    WHERE rental_id = p_rental_id;
+
+    -- Check if the rental is within the valid period
+    IF SYSDATE >= v_start_date AND v_end_date IS NULL THEN
+        -- Update rental status to 'Returned'
+        UPDATE car_rental
+        SET rent_status = 'Returned'
+        WHERE rental_id = p_rental_id;
+        RETURN 'Rental ID ' || p_rental_id || ' status changed to returned';
+    ELSE
+        RETURN 'Rental ID ' || p_rental_id || ' did not change the status';
+    END IF;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN 'Rental ID ' || p_rental_id || ' not found.';
+    WHEN OTHERS THEN
+        RETURN 'Error updating rental ID ' || p_rental_id || ': ' || SQLERRM;
+  END update_rental_status;
+
+  -- Function to calculate total cost of extra equipment rented for a rental
+  FUNCTION calculate_extra_equipment_cost(p_rental_id IN NUMBER)
+  RETURN NUMBER IS
+    v_total_cost NUMBER := 0;
+  BEGIN
+    FOR rec IN (
+      SELECT re.rental_id, re.equipment_id, re.quantity, ee.price
+      FROM Rental_Equipment re
+      JOIN Extra_Equipment ee ON re.equipment_id = ee.equipment_id
+      WHERE re.rental_id = p_rental_id
+    )
+    LOOP
+      v_total_cost := v_total_cost + (rec.quantity * rec.price);
+    END LOOP;
+
+    RETURN v_total_cost;
+  END calculate_extra_equipment_cost;
+END Rental_Management;
+/
+
 --triggers 
 CREATE OR REPLACE TRIGGER generate_email
 BEFORE INSERT ON Staff
@@ -370,8 +613,7 @@ BEGIN
 END;
 /
 
---functions
---package
+
 CREATE OR REPLACE TRIGGER generate_email
 BEFORE INSERT ON Staff
 FOR EACH ROW
@@ -500,7 +742,7 @@ BEGIN
 END;
 /
 
---manufacture
+--manufacturer data
 INSERT INTO Manufacturer (manufactuerer_id, Manufacturer_name)
 VALUES (1, 'Toyota');
 
@@ -531,7 +773,7 @@ VALUES (9, 'Nissan');
 INSERT INTO Manufacturer (manufactuerer_id, Manufacturer_name)
 VALUES (10, 'Hyundai');
 
---location
+--location data
 INSERT INTO Location (location_id, phone_number, address, city) VALUES
 (1, '36123456', '2834', 'Manama');
 
@@ -547,7 +789,7 @@ INSERT INTO Location (location_id, phone_number, address, city) VALUES
 INSERT INTO Location (location_id, phone_number, address, city) VALUES
 (5, '36567890', '8012', 'A''ali');
 
---car category
+--car category data
 INSERT INTO Car_Category (Category_id, category_name)
 VALUES (10, 'ECO');
 
@@ -556,7 +798,8 @@ VALUES (20, 'LUX');
 
 INSERT INTO Car_Category (Category_id, category_name)
 VALUES (30, 'SUV');
---extra equipment
+
+--extra equipment data
 INSERT INTO extra_equipment (equipment_id, description, equipment_name, price, quantity)
 VALUES (equipment_seq.nextval, 'GPS Navigation System', 'GPS', 10, 5);
 
@@ -787,7 +1030,9 @@ VALUES (49, 'Santa Fe', 10, 2.5);
 
 INSERT INTO Model (model_id, Model_name, manufactuerer_id, engine_size)
 VALUES (50, 'Palisade', 10, 3.8);
---customer
+
+
+--customer data
 INSERT INTO Customer (customer_id, first_name, email_address, last_name, phone_number, city, cpr_number, house_address, road_address, block_address)
 VALUES (customer_seq.nextval, 'Ahmad', 'ahmad@mail.com', 'Khalil', '36678901', 'Manama', '031234567', '9876', '5678', '7856');
 
@@ -862,7 +1107,7 @@ VALUES (customer_seq.nextval, 'Nora', 'nora@mail.com', 'Ali', '36789012', 'Al Da
 
 INSERT INTO Customer (customer_id, first_name, email_address, last_name, phone_number, city, cpr_number, house_address, road_address, block_address)
 VALUES (customer_seq.nextval, 'Ahmed', 'ahmed@mail.com', 'Hassan', '36654321', 'Zinj', '067890123', '1234', '8532', '3285');
---car 
+--car data
 
 
 INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manufacturing_year, color, current_mileage, daily_hire_rate, car_status, Category_id,location_id)
@@ -956,7 +1201,7 @@ INSERT INTO Car (car_id, model_id, plate_number, car_registration_due_date, manu
 VALUES (car_seq.nextval, 40, 19564, TO_DATE('2025-10-23', 'YYYY-MM-DD'), 2023, 'Purple', 20000, 119.00, 'Available', 20, 4);
 
 
--- staff
+-- staff data
 
 INSERT INTO Staff (staff_id, first_name, last_name, cpr_number, city, phone_number, Job_id, location_id, house_address, road_address, block_address) VALUES
 (staff_seq.nextval, 'Ahmed', 'Ali', '018635906', 'Manama', '39654321', 1, 1, '8901', '2109', '7654');
@@ -1030,13 +1275,165 @@ INSERT INTO Staff (staff_id, first_name, last_name, cpr_number, city, phone_numb
 INSERT INTO Staff (staff_id, first_name, last_name, cpr_number, city, phone_number, Job_id, location_id, house_address, road_address, block_address) VALUES
 (staff_seq.nextval, 'Aiza ', 'Karam', '963305637', 'Tubli', '39123456', 6, 5, '3456', '6789', '4321');
 
+-- car rental data
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3001, 1001, 7, TO_DATE('2022-06-01', 'YYYY-MM-DD'), 7001);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3002, 1002, 5, TO_DATE('2022-07-01', 'YYYY-MM-DD'), 7002);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3003, 1003, 12, TO_DATE('2022-6-23', 'YYYY-MM-DD'), 7003);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3004, 1004, 3, TO_DATE('2022-07-01', 'YYYY-MM-DD'), 7004);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3005, 1005, 7, TO_DATE('2021-12-06', 'YYYY-MM-DD'), 7005);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3006, 1006, 15, TO_DATE('2023-01-7', 'YYYY-MM-DD'), 7006);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3007, 1007, 14, TO_DATE('2022-6-27', 'YYYY-MM-DD'), 7007);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3008, 1008, 2, TO_DATE('2021-04-20', 'YYYY-MM-DD'), 7008);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3009, 1009, 8, TO_DATE('2022-04-03', 'YYYY-MM-DD'), 7009);
 
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3010, 1010, 5, TO_DATE('2023-02-17', 'YYYY-MM-DD'), 7010);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3011, 1011, 16, TO_DATE('2023-02-23', 'YYYY-MM-DD'), 7011);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3012, 1012, 15, TO_DATE('2022-07-30', 'YYYY-MM-DD'), 7012);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3013, 1013, 2, TO_DATE('2021-10-01', 'YYYY-MM-DD'), 7013);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3014, 1014, 5, TO_DATE('2023-08-09', 'YYYY-MM-DD'), 7014);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3015, 1015, 20, TO_DATE('2021-01-29', 'YYYY-MM-DD'), 7015);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3016, 1016, 11, TO_DATE('2022-02-09', 'YYYY-MM-DD'), 7016);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3017, 1017, 23, TO_DATE('2023-04-26', 'YYYY-MM-DD'), 7017);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3018, 1018, 5, TO_DATE('2023-05-04', 'YYYY-MM-DD'), 7018);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3019, 1019, 7, TO_DATE('2022-09-26', 'YYYY-MM-DD'), 7019);
+
+INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_date, staff_id)
+VALUES (rental_seq.nextval, 3020, 1020, 8, TO_DATE('2022-12-06', 'YYYY-MM-DD'), 7020);
+--
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2010, 4002, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2013, 4007, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2012, 4013, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2015, 4015, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2002, 4011, 2);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2006, 4012, 3);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2023, 4001, 1);
+--
+update car_rental
+set end_date = '12-JUN-22'
+where rental_id = 2001;
+
+update car_rental
+set end_date = '06-JUL-22'
+where rental_id = 2002;
+
+update car_rental
+set end_date = '07-JUL-22'
+where rental_id = 2003;
+
+update car_rental
+set end_date = '04-JUL-22'
+where rental_id = 2004;
+
+update car_rental
+set end_date = '13-DEC-21'
+where rental_id = 2005;
+
+update car_rental
+set end_date = '30-JAN-23'
+where rental_id = 2006;
+
+update car_rental
+set end_date = '11-JUL-22'
+where rental_id = 2007;
+
+update car_rental
+set end_date = '22-APR-21'
+where rental_id = 2008;
+
+update car_rental
+set end_date = '11-APR-22'
+where rental_id = 2009;
+
+update car_rental
+set end_date = '22-FEB-23'
+where rental_id = 2010;
+
+update car_rental
+set end_date = '14-MAR-23'
+where rental_id = 2011;
+
+update car_rental
+set end_date = '14-AUG-22'
+where rental_id = 2012;
+
+update car_rental
+set end_date = '06-OCT-21'
+where rental_id = 2013;
+
+update car_rental
+set end_date = '14-AUG-23'
+where rental_id = 2014;
+
+update car_rental
+set end_date = '18-FEB-21'
+where rental_id = 2015;
+
+update car_rental
+set end_date = '21-FEB-22'
+where rental_id = 2016;
+
+update car_rental
+set end_date = '19-MAY-23'
+where rental_id = 2017;
+
+update car_rental
+set end_date = '09-MAY-23'
+where rental_id = 2018;
+
+update car_rental
+set end_date = '04-OCT-22'
+where rental_id = 2019;
+
+update car_rental
+set end_date = '14-DEC-22'
+where rental_id = 2020;

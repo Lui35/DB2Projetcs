@@ -59,7 +59,25 @@ INSERT INTO Car_rental (rental_id, customer_id, car_id, rent_duration, start_dat
 VALUES (rental_seq.nextval, 3020, 1020, 8, TO_DATE('2022-12-06', 'YYYY-MM-DD'), 7020);
 --
 INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
-VALUES (2010, 4002, 2);
+VALUES (2010, 4002, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2013, 4007, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2012, 4013, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2015, 4015, 1);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2002, 4011, 2);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2006, 4012, 3);
+
+INSERT INTO Rental_Equipment (rental_id, equipment_id, quantity)
+VALUES (2023, 4001, 1);
 --
 update car_rental
 set end_date = '12-JUN-22'
